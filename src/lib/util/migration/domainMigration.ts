@@ -2,6 +2,8 @@ import { C } from '$/constants';
 import { env } from '$/util/env';
 
 const mermaidAiDomain = 'mermaid.ai';
+const mermaidLiveDomain = 'mermaid.live';
+const netlifyPreviewDomain = 'netlify.app';
 
 /**
  * Check if we're on mermaid.ai
@@ -11,25 +13,19 @@ export const isOnMermaidAI = (): boolean => {
   return domain === mermaidAiDomain || domain.endsWith(`.${mermaidAiDomain}`);
 };
 
-// localStorage keys that indicate a returning user.
-// Note: codeStore is excluded because it's always populated with the default state on first load.
-const userDataStorageKeys = [
-  'manualHistoryStore', // Manual history entries
-  'autoHistoryStore' // Auto history entries
-];
+/**
+ * Check if we're on mermaid.live
+ */
+export const isOnMermaidLive = (): boolean => {
+  const domain = window.location.hostname;
+  return domain === mermaidLiveDomain || domain.endsWith(`.${mermaidLiveDomain}`);
+};
 
 /**
- * Check if user has any stored data in localStorage.
- * This includes saved diagrams, history entries, etc.
+ * Check if we're on a Netlify preview/staging deploy (*.netlify.app).
  */
-const hasStoredUserData = (): boolean => {
-  for (const key of userDataStorageKeys) {
-    const value = window.localStorage.getItem(key);
-    if (value && value !== '[]' && value !== 'null' && value !== '{}') {
-      return true;
-    }
-  }
-  return false;
+const isOnNetlifyPreview = (): boolean => {
+  return window.location.hostname.endsWith(`.${netlifyPreviewDomain}`);
 };
 
 /**
@@ -54,7 +50,9 @@ const isReferredFromMermaid = (): boolean => {
       hostname === 'mermaid.ai' ||
       hostname.endsWith('.mermaid.ai') ||
       hostname === 'mermaid.js.org' ||
-      hostname.endsWith('.mermaid.js.org')
+      hostname.endsWith('.mermaid.js.org') ||
+      hostname === 'mermaid.live' ||
+      hostname.endsWith('.mermaid.live')
     );
   } catch {
     return false;
@@ -65,12 +63,16 @@ const isReferredFromMermaid = (): boolean => {
  * Check if the editor chooser modal should be shown.
  * Shows for new users who haven't dismissed it and aren't viewing a shared link.
  * Not shown on mobile (viewport width < 640px).
+ * Can be forced open for QA via the `?editorChooser=1` query flag, which bypasses
+ * the hostname and dismissed checks.
  */
 export const shouldShowEditorChooser = (): boolean => {
   if (!env.isEnabledMermaidChartLinks) return false;
   if (window.innerWidth < 640) return false;
+  const forced = new URLSearchParams(window.location.search).get('editorChooser') === '1';
+  if (forced) return true;
+  if (!isOnMermaidAI() && !isOnMermaidLive() && !isOnNetlifyPreview()) return false;
   if (window.localStorage.getItem(C.editorChooserDismissedKey) === 'true') return false;
-  if (hasStoredUserData()) return false;
   if (hasPakoData()) return false;
   if (isReferredFromMermaid()) return false;
   return true;
